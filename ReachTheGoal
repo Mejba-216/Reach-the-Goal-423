@@ -351,5 +351,66 @@ def main():
 if __name__ == "__main__":
     main()
 
+sheid_walls=[
+        if point_in_rect(px,py,s['cx'],s['cy'],s['w'],s['d']):
+             return True
+    return False
+def keyboardListner(key,x,y):
+   global player_row,player_col,pos,selected_sheild
+   key= key.decode().lower()
+
+   if key in ('1','2','3','4'):
+      selected_shield=int(key)
+   pos=grid_to_world(player_row,player_col,10)
+   glutPostRedisplay()
+
+def specialkeyListner(key,x,y):
+    global camera_pos,shield_walls,selected_shield
+    xcam,ycam,zcam=camera_pos
+
+    move=CELL_SIZE/1.5
+    if key == GLUT_KEY_LEFT:
+       shield_walls[selected_shield]['cx']= clamp(shield_walls{selected_sheild]['cx']-move,GRID_LENGTH,GRID_LENGTH)
+    elif key == GLUT_KEY_RIGHT:
+        shield_walls[selected_shield]['cx']= clamp(shield_walls{selected_sheild]['cx']+move,GRID_LENGTH,GRID_LENGTH)
+    elif key == GLUT_KEY_UP:
+        shield_walls[selected_shield]['cy']= clamp(shield_walls{selected_sheild]['cx'] -move,GRID_LENGTH,GRID_LENGTH)
+    elif key == GLUT_KEY_RIGHT:
+        shield_walls[selected_shield]['cy']= clamp(shield_walls{selected_sheild]['cx'] -move,GRID_LENGTH,GRID_LENGTH)
+    camera_pos=(xcam,ycam,zcam)
+
+def update():
+   global prev_time, hide_start_time,game_over,game_over_reason,pos
+   current_time=time.time()
+   dt=current_time-prev_time
+   prev_time=current_time
+if not thorn_positions and current_time-last_wave_time>=1:
+   thorn_wave()
+def animate_thorns(dt)
+if game_over:
+  glutPostedRedisplay()
+  return
+if check_collision_player_thorns():
+   game_over=True
+   game_over_reason="Hit by thorn"
+   glutPostRedisplay()
+   return
+if check_player_inside_any_sheild():
+   if hide_start_time is None:
+      hide_start_time=current_time
+   else:
+     if (current_time-hide_start_time)>=HIDE_LIMIT:
+        game_over=True
+        game_over_reason=f"stayed behind sheid > {int(HIDE_LIMIT)}s"
+        glutPostRedisplay()
+        return
+else:
+   hide_start_time=None
+glutPostRedisplay()
+
+draw_text(10, 770, f"Shields: select [1..4], move with Arrow Keys | Hide limit: {HIDE_LIMIT:.0f}s")
+if hide_start_time:
+    t = time.time() - hide_start_time
+    draw_text(10, 740, f"Hiding: {t:.1f}s")
 
 
