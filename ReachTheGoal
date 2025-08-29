@@ -76,6 +76,75 @@ def wall():
             glVertex3f(*j)  
         glEnd()
 
+thorn_positions = []   
+thorn_speed = 2       
+wave_phase = 0       
+last_wave_time = time.time()
+
+def thorn_wave():
+    global thorn_positions, wave_phase, last_wave_time
+    thorn_positions = []
+    cols = range(12)
+    if wave_phase == 0:
+    
+        cols = []
+        for c in range(12):
+            if c % 2 == 1:
+               cols.append(c)
+    else:
+    
+       cols = []
+       for c in range(12):
+        if c % 2 == 0:
+            cols.append(c)
+
+
+    for c in cols:
+        thorn_positions.append([c, 0])  
+
+    wave_phase = 1 - wave_phase  
+    last_wave_time = time.time()      
+
+
+def animate_thorns(dt):
+    global thorn_positions
+    for thorn in thorn_positions:
+        thorn[1] += thorn_speed * dt  
+   
+    thorn_positions = [t for t in thorn_positions if t[1] <= 11]
+
+
+def thorns():
+    glColor3f(1,0,0)
+    for col, row in thorn_positions:
+        world_pos = grid_to_world(int(row), col, 10)
+        x, y, z = world_pos
+        h = 40
+        glPushMatrix()
+        glTranslatef(x, y, z)
+        glBegin(GL_TRIANGLES)
+        glVertex3f(0, 0, 0)
+        glVertex3f(-h/2, 0, h)
+        glVertex3f(h/2, 0, h)
+        glEnd()
+        glPopMatrix()
+
+
+prev_time = time.time()
+
+def update():
+    global prev_time
+    current_time = time.time()
+    dt = current_time - prev_time
+    prev_time = current_time
+
+    
+    if not thorn_positions and current_time - last_wave_time >= 1:
+        thorn_wave()
+
+    animate_thorns(dt)
+    glutPostRedisplay()
+
 
 def draw_text(x, y, text, font=GLUT_BITMAP_HELVETICA_18):
     glColor3f(1,1,1)
@@ -128,30 +197,21 @@ def draw_shapes():
 
 
 def keyboardListener(key, x, y):
-    """
-    Handles keyboard inputs for player movement, gun rotation, camera updates, and cheat mode toggles.
-    """
-    # # Move forward (W key)
-    # if key == b'w':  
+    global player_row, player_col, pos
 
-    # # Move backward (S key)
-    # if key == b's':
+    key = key.decode("utf-8").lower() 
+    if key == 's' and player_row < 11:       
+        player_row += 1
+    elif key == 'w' and player_row > 0:     
+        player_row -= 1
+    elif key == 'd' and player_col > 0:    
+        player_col -= 1
+    elif key == 'a' and player_col < 11:     
+        player_col += 1
 
-    # # Rotate gun left (A key)
-    # if key == b'a':
-
-    # # Rotate gun right (D key)
-    # if key == b'd':
-
-    # # Toggle cheat mode (C key)
-    # if key == b'c':
-
-    # # Toggle cheat vision (V key)
-    # if key == b'v':
-
-    # # Reset the game if R key is pressed
-    # if key == b'r':
-
+    
+    pos = grid_to_world(player_row, player_col, 10)
+    glutPostRedisplay()
 
 def specialKeyListener(key, x, y):
     """
@@ -290,5 +350,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
