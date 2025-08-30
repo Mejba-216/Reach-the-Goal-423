@@ -352,74 +352,120 @@ if __name__ == "__main__":
     main()
 
 
-shield_walls = [
-    {'cx': -300.0, 'cy': -300.0, 'w': 120.0, 'd': 20.0},
-    {'cx': -100.0, 'cy': -300.0, 'w': 120.0, 'd': 20.0},
-    {'cx': 100.0, 'cy': -300.0, 'w': 120.0, 'd': 20.0},
-    {'cx': 300.0, 'cy': -300.0, 'w': 120.0, 'd': 20.0},
-]
 
+# 4 guard walls on the ground
+shield_walls = [
+    {'cx': -3*CELL_SIZE/2, 'cy': 2*CELL_SIZE,   'w': 2*CELL_SIZE, 'd': 0.7*CELL_SIZE, 'color':(0.35,0.8,0.5)},
+    {'cx':  3*CELL_SIZE/2, 'cy': 2*CELL_SIZE,   'w': 2*CELL_SIZE, 'd': 0.7*CELL_SIZE, 'color':(0.35,0.8,0.9)},
+    {'cx': -3*CELL_SIZE/2, 'cy': 6*CELL_SIZE/2, 'w': 2*CELL_SIZE, 'd': 0.7*CELL_SIZE, 'color':(0.60,0.6,0.95)},
+    {'cx':  3*CELL_SIZE/2, 'cy': 6*CELL_SIZE/2, 'w': 2*CELL_SIZE, 'd': 0.7*CELL_SIZE, 'color':(0.60,0.6,0.95)},
+]
+selected_shield = 0  # press keys 1..4 to choose which shield to move
+
+# Hide timer (max seconds allowed behind any shield)
 HIDE_LIMIT = 3.0
 hide_start_time = None
-game_over = False
-game_over_reason = None
-def keyboardListner(key,x,y):
-   global player_row,player_col,pos,selected_sheild
-   key= key.decode().lower()
 
-   if key in ('1','2','3','4'):
-      selected_shield=int(key)
-   pos=grid_to_world(player_row,player_col,10)
-   glutPostRedisplay()
+def point_in_rect(px, py, cx, cy, w, d):
+    return (cx - w/2) <= px <= (cx + w/2) and (cy - d/2) <= py <= (cy + d/2)
 
-def specialkeyListner(key,x,y):
-    global camera_pos,shield_walls,selected_shield
-    xcam,ycam,zcam=camera_pos
+def draw_shields():
+    """Draw the 4 guard walls (selected one is highlighted)."""
+    for i, s in enumerate(shield_walls):
+        r,g,b = s['color']
+        if i == selected_shield:
+            r = min(1.0, r+0.25); g = min(1.0, g+0.25); b = min(1.0, b+0.25)
+        glColor3f(r,g,b)
+        glBegin(GL_QUADS)
+        glVertex3f(s['cx'] - s['w']/2, s['cy'] - s['d']/2, 2.0)
+        glVertex3f(s['cx'] + s['w']/2, s['cy'] - s['d']/2, 2.0)
+        glVertex3f(s['cx'] + s['w']/2, s['cy'] + s['d']/2, 2.0)
+        glVertex3f(s['cx'] - s['w']/2, s['cy'] + s['d']/2, 2.0)
+        glEnd()
 
-    move=CELL_SIZE/1.5
+def check_player_inside_any_shield():
+    """Returns True if player is hiding inside any shield area."""
+    px, py = player_world_xy()
+    for s in shield_walls:
+        if point_in_rect(px, py, s['cx'], s['cy'], s['w'], s['d']):
+            return True
+    return False
+
+
+def keyboardListener(key, x, y):
+    global player_row, player_col, pos, selected_shield
+    key = key.decode("utf-8").lower()
+
+    # ... (WASD player movement kept as-is)
+
+    # Select which shield to move: keys 1..4
+    if key in ('1','2','3','4'):
+        selected_shield = int(key) - 1
+
+    pos = grid_to_world(player_row, player_col, 10)
+    glutPostRedisplay()
+
+def specialKeyListener(key, x, y):
+    """Arrow keys move the currently selected shield."""
+    global camera_pos, shield_walls, selected_shield
+    xcam, ycam, zcam = camera_pos
+
+    move = CELL_SIZE/1.5
     if key == GLUT_KEY_LEFT:
-       shield_walls[selected_shield]['cx']= clamp(shield_walls{selected_sheild]['cx']-move,GRID_LENGTH,GRID_LENGTH)
+        shield_walls[selected_shield]['cx'] = clamp(shield_walls[selected_shield]['cx'] - move, -GRID_LENGTH, GRID_LENGTH)
     elif key == GLUT_KEY_RIGHT:
-        shield_walls[selected_shield]['cx']= clamp(shield_walls{selected_sheild]['cx']+move,GRID_LENGTH,GRID_LENGTH)
+        shield_walls[selected_shield]['cx'] = clamp(shield_walls[selected_shield]['cx'] + move, -GRID_LENGTH, GRID_LENGTH)
     elif key == GLUT_KEY_UP:
-        shield_walls[selected_shield]['cy']= clamp(shield_walls{selected_sheild]['cx'] -move,GRID_LENGTH,GRID_LENGTH)
-    elif key == GLUT_KEY_RIGHT:
-        shield_walls[selected_shield]['cy']= clamp(shield_walls{selected_sheild]['cx'] -move,GRID_LENGTH,GRID_LENGTH)
-    camera_pos=(xcam,ycam,zcam)
+        shield_walls[selected_shield]['cy'] = clamp(shield_walls[selected_shield]['cy'] + move, -GRID_LENGTH, GRID_LENGTH)
+    elif key == GLUT_KEY_DOWN:
+        shield_walls[selected_shield]['cy'] = clamp(shield_walls[selected_shield]['cy'] - move, -GRID_LENGTH, GRID_LENGTH)
 
+    camera_pos = (xcam, ycam, zcam)
+# ========= PERSON 2: Shields — GAME LOGIC (START) =========
 def update():
-   global prev_time, hide_start_time,game_over,game_over_reason,pos
-   current_time=time.time()
-   dt=current_time-prev_time
-   prev_time=current_time
-if not thorn_positions and current_time-last_wave_time>=1:
-   thorn_wave()
-def animate_thorns(dt)
-if game_over:
-  glutPostedRedisplay()
-  return
-if check_collision_player_thorns():
-   game_over=True
-   game_over_reason="Hit by thorn"
-   glutPostRedisplay()
-   return
-if check_player_inside_any_sheild():
-   if hide_start_time is None:
-      hide_start_time=current_time
-   else:
-     if (current_time-hide_start_time)>=HIDE_LIMIT:
-        game_over=True
-        game_over_reason=f"stayed behind sheid > {int(HIDE_LIMIT)}s"
+    global prev_time, hide_start_time, game_over, game_over_reason, pos
+    current_time = time.time()
+    dt = current_time - prev_time
+    prev_time = current_time
+
+    # (thorns timing/motion unchanged)
+    if not thorn_positions and current_time - last_wave_time >= 1:
+        thorn_wave()
+    animate_thorns(dt)
+
+    if game_over:
         glutPostRedisplay()
         return
-else:
-   hide_start_time=None
-glutPostRedisplay()
 
+    if check_collision_player_thorns():
+        game_over = True
+        game_over_reason = "Hit by thorn"
+        glutPostRedisplay()
+        return
+
+    # Game over if staying behind any shield > HIDE_LIMIT seconds
+    if check_player_inside_any_shield():
+        if hide_start_time is None:
+            hide_start_time = current_time
+        else:
+            if (current_time - hide_start_time) >= HIDE_LIMIT:
+                game_over = True
+                game_over_reason = f"Stayed behind shield > {int(HIDE_LIMIT)}s"
+                glutPostRedisplay()
+                return
+    else:
+        hide_start_time = None
+
+    glutPostRedisplay()
+
+# Place inside showScreen() after drawing 3D scene:
 draw_text(10, 770, f"Shields: select [1..4], move with Arrow Keys | Hide limit: {HIDE_LIMIT:.0f}s")
 if hide_start_time:
     t = time.time() - hide_start_time
     draw_text(10, 740, f"Hiding: {t:.1f}s")
+
+
+
 
 
 
