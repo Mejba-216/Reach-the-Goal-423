@@ -324,7 +324,10 @@ def showScreen():
 
     # Display game info text at a fixed screen position
     draw_text(10, 770, f"A Random Fixed Position Text")
-    draw_text(10, 740, f"See how the position and variable change?: {rand_var}")
+    draw_text(10, 740, f"See how the position and variable change?: {rand_var
+    arena()
+    player()
+    throns()
 
     draw_shapes()
 
@@ -463,6 +466,7 @@ draw_text(10, 770, f"Shields: select [1..4], move with Arrow Keys | Hide limit: 
 if hide_start_time:
     t = time.time() - hide_start_time
     draw_text(10, 740, f"Hiding: {t:.1f}s")
+
 
 
 
