@@ -132,7 +132,7 @@ def thorns():
 
 prev_time = time.time()
 
-# ========= PERSON 2: Shields — GAME LOGIC (START) =========
+
 def random_shield():
     return {
         'cx': random.randint(-5, 5) * (CELL_SIZE/2),
@@ -671,6 +671,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
