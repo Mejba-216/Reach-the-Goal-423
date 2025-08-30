@@ -351,10 +351,18 @@ def main():
 if __name__ == "__main__":
     main()
 
-sheid_walls=[
-        if point_in_rect(px,py,s['cx'],s['cy'],s['w'],s['d']):
-             return True
-    return False
+
+shield_walls = [
+    {'cx': -300.0, 'cy': -300.0, 'w': 120.0, 'd': 20.0},
+    {'cx': -100.0, 'cy': -300.0, 'w': 120.0, 'd': 20.0},
+    {'cx': 100.0, 'cy': -300.0, 'w': 120.0, 'd': 20.0},
+    {'cx': 300.0, 'cy': -300.0, 'w': 120.0, 'd': 20.0},
+]
+
+HIDE_LIMIT = 3.0
+hide_start_time = None
+game_over = False
+game_over_reason = None
 def keyboardListner(key,x,y):
    global player_row,player_col,pos,selected_sheild
    key= key.decode().lower()
@@ -412,5 +420,6 @@ draw_text(10, 770, f"Shields: select [1..4], move with Arrow Keys | Hide limit: 
 if hide_start_time:
     t = time.time() - hide_start_time
     draw_text(10, 740, f"Hiding: {t:.1f}s")
+
 
 
