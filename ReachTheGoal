@@ -478,195 +478,188 @@ if __name__ == "__main__":
 from OpenGL.GL import *
 from OpenGL.GLUT import *
 from OpenGL.GLU import *
-import random, time
+import random, sys
 
-# -------------------------------
-# Global Variables
-# -------------------------------
-camera_pos = (0, 500, 500)
-fovY = 120
+# Window dimensions
+WIDTH, HEIGHT = 800, 600
+
+# Grid size
 GRID_LENGTH = 600
 
-# Person 3 features
-player_pos = [0, -GRID_LENGTH + 60, 30]   # Start at bottom center
+# Player properties
+player_x = GRID_LENGTH // 2
+player_y = 50
+player_lives = 3
 score = 0
-lives = 3
+
+# Game states
 game_over = False
-game_win = False
-thorn_speed = 1.0
-last_speed_update = time.time()
-player_dead = False  # To track lying on floor
+dead_pose = False
+won_game = False  # <-- new flag
 
-# Bonus collectibles
-collectibles = [[random.randint(-GRID_LENGTH+60, GRID_LENGTH-60),
-                 random.randint(-GRID_LENGTH+60, GRID_LENGTH-60), 30]]
+# Collectibles
+collectibles = []
 
-# -------------------------------
-# Utility Functions
-# -------------------------------
-def draw_text(x, y, text, font=GLUT_BITMAP_HELVETICA_18):
-    glColor3f(1, 1, 1)
-    glMatrixMode(GL_PROJECTION)
+# ---------------- PLAYER MODEL ---------------- #
+def draw_player_model():
+    # Replace this with your Part 1 player model
+    glColor3f(0, 0, 1)  # blue cube placeholder
+    glutSolidCube(40)
+
+def draw_player(alive=True):
     glPushMatrix()
-    glLoadIdentity()
-    gluOrtho2D(0, 1000, 0, 800)
-    glMatrixMode(GL_MODELVIEW)
-    glPushMatrix()
-    glLoadIdentity()
-    glRasterPos2f(x, y)
-    for ch in text:
-        glutBitmapCharacter(font, ord(ch))
+    glTranslatef(player_x, player_y, 30)
+    if not alive:
+        glRotatef(90, 1, 0, 0)  # rotate to lie down
+    draw_player_model()
     glPopMatrix()
-    glMatrixMode(GL_PROJECTION)
-    glPopMatrix()
-    glMatrixMode(GL_MODELVIEW)
 
-def draw_cube(x, y, z, size, color, rotate_dead=False):
+# ---------------- DIAMOND (Collectible) ---------------- #
+def draw_diamond(x, y, z, size):
     glPushMatrix()
-    glColor3f(*color)
     glTranslatef(x, y, z)
-    if rotate_dead:
-        glRotatef(90, 1, 0, 0)  # Lying flat
-    glutSolidCube(size)
+    glScalef(size, size, size)
+    glColor3f(0.5, 0.8, 1.0)  # light blue
+
+    glBegin(GL_TRIANGLES)
+    # top pyramid
+    glVertex3f(0, 0, 1); glVertex3f(-1, -1, 0); glVertex3f(1, -1, 0)
+    glVertex3f(0, 0, 1); glVertex3f(1, -1, 0); glVertex3f(1, 1, 0)
+    glVertex3f(0, 0, 1); glVertex3f(1, 1, 0); glVertex3f(-1, 1, 0)
+    glVertex3f(0, 0, 1); glVertex3f(-1, 1, 0); glVertex3f(-1, -1, 0)
+    # bottom pyramid
+    glVertex3f(0, 0, -1); glVertex3f(-1, -1, 0); glVertex3f(1, -1, 0)
+    glVertex3f(0, 0, -1); glVertex3f(1, -1, 0); glVertex3f(1, 1, 0)
+    glVertex3f(0, 0, -1); glVertex3f(1, 1, 0); glVertex3f(-1, 1, 0)
+    glVertex3f(0, 0, -1); glVertex3f(-1, 1, 0); glVertex3f(-1, -1, 0)
+    glEnd()
     glPopMatrix()
 
-# -------------------------------
-# Person 3 Features
-# -------------------------------
-def reset_game():
-    global player_pos, score, lives, game_over, game_win, thorn_speed, last_speed_update, player_dead
-    player_pos = [0, -GRID_LENGTH + 60, 30]
-    score = 0
-    lives = 3
-    game_over = False
-    game_win = False
-    thorn_speed = 1.0
-    last_speed_update = time.time()
-    player_dead = False
-
-def update_score_and_speed():
-    global score, thorn_speed, last_speed_update, game_win
-    if player_pos[1] >= GRID_LENGTH - 60:
-        game_win = True
-        score += 10
-    if time.time() - last_speed_update > 5:
-        thorn_speed += 0.2
-        last_speed_update = time.time()
+# ---------------- GAME LOGIC ---------------- #
+def spawn_collectibles():
+    collectibles.clear()
+    for _ in range(5):
+        x = random.randint(50, GRID_LENGTH - 50)
+        y = random.randint(100, GRID_LENGTH - 100)
+        collectibles.append((x, y))
 
 def check_collectibles():
-    global score, collectibles
-    for c in collectibles:
-        if abs(player_pos[0] - c[0]) < 40 and abs(player_pos[1] - c[1]) < 40:
-            score += 5
-            collectibles.remove(c)
-            collectibles.append([random.randint(-GRID_LENGTH+60, GRID_LENGTH-60),
-                                 random.randint(-GRID_LENGTH+60, GRID_LENGTH-60), 30])
-            break
+    global score
+    global collectibles
+    for (cx, cy) in collectibles[:]:
+        if abs(player_x - cx) < 30 and abs(player_y - cy) < 30:
+            collectibles.remove((cx, cy))
+            score += 1
 
-def lose_life():
-    global lives, game_over, player_dead
-    lives -= 1
-    if lives <= 0:
+def check_win():
+    global score, game_over, won_game
+    if player_y >= GRID_LENGTH - 50:
+        score += 10
         game_over = True
-        player_dead = True  # Show lying player
+        won_game = True  # player won
 
-# -------------------------------
-# Player Movement + Respawn
-# -------------------------------
-def keyboardListener(key, x, y):
-    global player_pos, score, game_over, player_dead, game_win
+def reset_game():
+    global player_x, player_y, player_lives, score
+    global game_over, dead_pose, won_game
+    player_x = GRID_LENGTH // 2
+    player_y = 50
+    player_lives = 3
+    score = 0
+    game_over = False
+    dead_pose = False
+    won_game = False
+    spawn_collectibles()
 
-    # If game over → reset on any key
+# ---------------- DISPLAY ---------------- #
+def draw_text(x, y, z, text):
+    glRasterPos3f(x, y, z)
+    for ch in text:
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, ord(ch))
+
+def draw_scene():
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+    glLoadIdentity()
+    gluLookAt(400, 400, 800, 400, 300, 0, 0, 1, 0)
+
+    # Ground
+    glColor3f(0.2, 0.8, 0.2)
+    glBegin(GL_QUADS)
+    glVertex3f(0, 0, 0); glVertex3f(GRID_LENGTH, 0, 0)
+    glVertex3f(GRID_LENGTH, GRID_LENGTH, 0); glVertex3f(0, GRID_LENGTH, 0)
+    glEnd()
+
+    # Draw collectibles
+    for (cx, cy) in collectibles:
+        draw_diamond(cx, cy, 30, 10)
+
+    # Draw player
+    if not game_over:
+        draw_player(alive=True)
+    elif dead_pose:
+        draw_player(alive=False)
+
+    # HUD
+    glColor3f(1, 1, 1)
+    draw_text(10, 10, 200, f"Score: {score}  Lives: {player_lives}")
+
+    if game_over:
+        if won_game:
+            draw_text(200, 300, 200, "YOU WIN! Press any key to play again")
+        elif dead_pose:
+            draw_text(200, 300, 200, "GAME OVER! Press any key to respawn")
+
+    glutSwapBuffers()
+
+# ---------------- INPUT ---------------- #
+def keyboard(key, x, y):
+    global player_x, player_y
+    global player_lives, game_over, dead_pose
     if game_over:
         reset_game()
         return
 
-    if game_win:
-        return
+    if key == b'a':  # left
+        player_x -= 20
+    elif key == b'd':  # right
+        player_x += 20
+    elif key == b'w':  # up
+        player_y += 20
+    elif key == b's':  # down
+        player_y -= 20
 
-    step = 60
-    if key == b'w':  # Up
-        player_pos[1] += step
-        score += 1
-    if key == b's':  # Down
-        player_pos[1] -= step
-        score += 1
-    if key == b'a':  # Left
-        player_pos[0] -= step
-        score += 1
-    if key == b'd':  # Right
-        player_pos[0] += step
-        score += 1
-    update_score_and_speed()
+    # boundaries
+    player_x = max(20, min(GRID_LENGTH - 20, player_x))
+    player_y = max(20, min(GRID_LENGTH - 20, player_y))
+
     check_collectibles()
+    check_win()
 
-# -------------------------------
-# Rendering
-# -------------------------------
-def setupCamera():
-    glMatrixMode(GL_PROJECTION)
-    glLoadIdentity()
-    gluPerspective(fovY, 1.25, 0.1, 1500)
-    glMatrixMode(GL_MODELVIEW)
-    glLoadIdentity()
-    x, y, z = camera_pos
-    gluLookAt(x, y, z, 0, 0, 0, 0, 0, 1)
+def lose_life():
+    global player_lives, game_over, dead_pose
+    player_lives -= 1
+    if player_lives <= 0:
+        game_over = True
+        dead_pose = True
 
-def showScreen():
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-    glLoadIdentity()
-    glViewport(0, 0, 1000, 800)
-    setupCamera()
-
-    # Draw Floor
-    glBegin(GL_QUADS)
-    glColor3f(0.7, 0.5, 0.95)
-    glVertex3f(-GRID_LENGTH, -GRID_LENGTH, 0)
-    glVertex3f(GRID_LENGTH, -GRID_LENGTH, 0)
-    glVertex3f(GRID_LENGTH, GRID_LENGTH, 0)
-    glVertex3f(-GRID_LENGTH, GRID_LENGTH, 0)
-    glEnd()
-
-    # Draw Player (alive or dead)
-    if player_dead:
-        draw_cube(player_pos[0], player_pos[1], 10, 60, (1, 0, 0), rotate_dead=True)
-    else:
-        draw_cube(player_pos[0], player_pos[1], 30, 60, (0, 1, 0))
-
-    # Draw Collectibles
-    for c in collectibles:
-        draw_cube(c[0], c[1], 30, 40, (1, 1, 0))
-
-    # UI Text
-    draw_text(10, 770, f"Score: {score}")
-    draw_text(10, 740, f"Lives: {lives}")
-    draw_text(10, 710, f"Thorn Speed: {thorn_speed:.2f}")
-
-    if game_over:
-        draw_text(450, 400, "GAME OVER - Press Any Key to Restart")
-    if game_win:
-        draw_text(450, 400, "YOU WIN!")
-
-    glutSwapBuffers()
-
-def idle():
+def update(value):
+    if not game_over:
+        # Example: lose life randomly to simulate obstacles
+        if random.random() < 0.01:
+            lose_life()
     glutPostRedisplay()
+    glutTimerFunc(100, update, 0)
 
-# -------------------------------
-# Main
-# -------------------------------
+# ---------------- MAIN ---------------- #
 def main():
-    glutInit()
+    glutInit(sys.argv)
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH)
-    glutInitWindowSize(1000, 800)
-    glutInitWindowPosition(0, 0)
-    glutCreateWindow(b"Person 3 Features with Respawn")
+    glutInitWindowSize(WIDTH, HEIGHT)
+    glutCreateWindow(b"OpenGL Player Game")
     glEnable(GL_DEPTH_TEST)
-
-    glutDisplayFunc(showScreen)
-    glutKeyboardFunc(keyboardListener)
-    glutIdleFunc(idle)
-
+    glutDisplayFunc(draw_scene)
+    glutKeyboardFunc(keyboard)
+    spawn_collectibles()
+    glutTimerFunc(100, update, 0)
     glutMainLoop()
 
 if __name__ == "__main__":
