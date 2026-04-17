@@ -1,687 +1,374 @@
-from OpenGL.GLUT import GLUT_BITMAP_HELVETICA_18
+# Thorn Escape - Clean Working Version
+# pip install PyOpenGL PyOpenGL_accelerate
+
 from OpenGL.GL import *
-from OpenGL.GLUT import *
 from OpenGL.GLU import *
-import math
+from OpenGL.GLUT import *
 import random
 import time
+import math
 
-camera_pos = (0,600,600)
-fovY = 120
+# ---------------- SETTINGS ----------------
+WINDOW_W = 1000
+WINDOW_H = 800
+
+GRID = 15
 GRID_LENGTH = 600
-rand_var = 423
+CELL = (2 * GRID_LENGTH) / GRID
 
+camera_pos = [0, -900, 850]
 
-
-def draw_text(x, y, text, font=GLUT_BITMAP_HELVETICA_18):
-    glColor3f(1,1,1)
-    glMatrixMode(GL_PROJECTION)
-    glPushMatrix()
-    glLoadIdentity()
-
-    gluOrtho2D(0, 1000, 0, 800)  
-    glMatrixMode(GL_MODELVIEW)
-    glPushMatrix()
-    glLoadIdentity()
-    
-   
-    glRasterPos2f(x, y)
-    for ch in text:
-        glutBitmapCharacter(font, ord(ch))
-    
-    glPopMatrix()
-    glMatrixMode(GL_PROJECTION)
-    glPopMatrix()
-    glMatrixMode(GL_MODELVIEW)
-
-
-arena_length = GRID_LENGTH
-cell_size = (2 * arena_length) / 15
-
-def arena():
-    glBegin(GL_QUADS)
-    i = 0
-    while i < 15:
-        j = 0
-        while j < 15:
-            if (i + j) % 2 == 0:
-                glColor3f(0, 1, 1)
-            else:
-                glColor3f(1,1,1)
-            x = - arena_length + i * cell_size
-            y = -arena_length + j * cell_size
-            glVertex3f(x, y, 0)
-            glVertex3f(x + cell_size, y, 0)
-            glVertex3f(x + cell_size, y + cell_size, 0)
-            glVertex3f(x, y + cell_size, 0)
-            j += 1
-        i += 1
-    glEnd()
-
-def wall():
-    arena_length = GRID_LENGTH
-    walls = [
-        ((-arena_length, -arena_length, 0), (-arena_length, arena_length, 0), (-arena_length, arena_length, 120), (-arena_length, -arena_length, 120), (0.133, 0.278, 0.271)),
-        (( arena_length, -arena_length, 0), (arena_length, arena_length, 0), ( arena_length, arena_length, 120), ( arena_length, -arena_length, 120), (0.133, 0.278, 0.271)),
-        ((-arena_length, arena_length, 0), ( arena_length,arena_length, 0), ( arena_length, arena_length, 120), (-arena_length, arena_length, 120), (0.494, 0.502, 0.345)),
-        ((-arena_length, -arena_length, 0), ( arena_length, -arena_length, 0), ( arena_length, -arena_length, 120), (-arena_length, -arena_length, 120), (0.494, 0.502, 0.345)),
-    ]
-    for i in walls:
-        ver, color = i[:4], i[4]
-        glColor3f(*color)
-        glBegin(GL_QUADS)
-        for j in ver:
-            glVertex3f(*j)
-        glEnd()
-
-
+# ---------------- GAME STATE ----------------
 player_row = 14
-player_col = 8
+player_col = 7
 
-def grid_to_world(row, col, z=14):
-    arena_length = GRID_LENGTH
-    num_cells = 15
-    cell_size = (2 * arena_length) / num_cells
-    x = -arena_length + (col + 0.5) * cell_size
-    y = -arena_length + (row + 0.5) * cell_size
-    return [x, y, z]
-
-pos = grid_to_world(player_row, player_col, 10)
-p_angle = 0
+lives = 3
+score = 0
+win = False
 game_over = False
-camera_tracking = False
-
-def player():
-    glPushMatrix()
-    glTranslatef(pos[0], pos[1], pos[2])
-    if game_over:
-        glRotatef(90, 1, 0, 0)
-    glRotatef(p_angle, 0, 0, 1)
-    if not camera_tracking:
-        glPushMatrix()
-        glColor3f(1.0, 0.8, 0.6)
-        glTranslatef(0, 0, 90)
-        gluSphere(gluNewQuadric(), 18, 30, 30)
-        glPopMatrix()
-        glPushMatrix()
-        glColor3f(0.1, 0.3, 0.7)
-        glTranslatef(0, 0, 55)
-        glScalef(30, 20, 50)
-        glutSolidCube(1)
-        glPopMatrix()
-        for side in [-1, 1]:
-            glPushMatrix()
-            glColor3f(0.1, 0.3, 0.7)
-            glTranslatef(0, side * 25, 65)
-            glRotatef(90, 1, 0, 0)
-            gluCylinder(gluNewQuadric(), 4, 4, 25, 10, 10)
-            glPopMatrix()
-        for off in [-10, 10]:
-            glPushMatrix()
-            glColor3f(0, 0, 0.8)
-            glTranslatef(off, 0, 20)
-            glRotatef(-90, 1, 0, 0)
-            gluCylinder(gluNewQuadric(), 5, 5, 35, 10, 10)
-            glPopMatrix()
-    glPopMatrix()
+reason = ""
 
 thorn_positions = []
-thorn_speed = 6
-wave_phase = 0
-last_wave_time = time.time()
+thorn_speed = 3.0
+last_wave = time.time()
 
+collectibles = []
+last_gem = time.time()
 
-def thorns():
-    glColor3f(1,0,0)
-    for col, row, dx, dy in thorn_positions:
-        world_pos = grid_to_world(int(row), int(col), 14)
-        x, y, z = world_pos
-        h = 40
-        glPushMatrix()
-        glTranslatef(x, y, z)
-        glBegin(GL_TRIANGLES)
-        glVertex3f(0, 0, 0)
-        glVertex3f(-h/2, 0, h)
-        glVertex3f(h/2, 0, h)
-        glEnd()
-        glPopMatrix()
-
-def thorn_wave():
-    global thorn_positions, wave_phase, last_wave_time
-    thorn_positions = []
-    cols = []
-    rows = []
-    if wave_phase == 0:
-        for c in range(15):
-            if c % 2 == 1:
-                cols.append(c)
-                rows.append(c)
-    else:
-        for c in range(15):
-            if c % 2 == 0:
-                cols.append(c)
-                rows.append(c)
-
-    direction = random.choice(["horizontal", "vertical"])
-    if direction == "horizontal":
-        for c in cols:
-            thorn_positions.append([c, 0, 0, 1])
-    else:
-        for r in rows:
-            thorn_positions.append([0, r, 1, 0])
-    wave_phase = 1 - wave_phase
-    
-
-def animate_thorns(dt):
-    global thorn_positions
-    updated = []
-    for thorn in thorn_positions:
-        c, r, dx, dy = thorn
-        c += dx * thorn_speed * dt
-        r += dy * thorn_speed * dt
-        if 0 <= c <= 15 and 0 <= r <= 15:
-            updated.append([c, r, dx, dy])
-    thorn_positions = updated
-
-    
-
+hide_start = None
+HIDE_LIMIT = 3
 
 prev_time = time.time()
 
-def update():
-    global prev_time
-    current_time = time.time()
-    dt = current_time - prev_time
-    prev_time = current_time
-    if not thorn_positions and current_time - last_wave_time >= 1:
-      thorn_wave()
-
-    animate_thorns(dt)
-    glutPostRedisplay()
+# ---------------- HELPERS ----------------
+def grid_to_world(row, col, z=20):
+    x = -GRID_LENGTH + (col + 0.5) * CELL
+    y = GRID_LENGTH - (row + 0.5) * CELL
+    return x, y, z
 
 
+def draw_text(x, y, txt):
+    glMatrixMode(GL_PROJECTION)
+    glPushMatrix()
+    glLoadIdentity()
+    gluOrtho2D(0, WINDOW_W, 0, WINDOW_H)
+
+    glMatrixMode(GL_MODELVIEW)
+    glPushMatrix()
+    glLoadIdentity()
+
+    glColor3f(1, 1, 1)
+    glRasterPos2f(x, y)
+
+    for ch in txt:
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, ord(ch))
+
+    glPopMatrix()
+    glMatrixMode(GL_PROJECTION)
+    glPopMatrix()
+    glMatrixMode(GL_MODELVIEW)
 
 
+# ---------------- DRAW ----------------
+def draw_arena():
+    for r in range(GRID):
+        for c in range(GRID):
+            x = -GRID_LENGTH + c * CELL
+            y = GRID_LENGTH - (r + 1) * CELL
 
-def keyboardListener(key, x, y):
-    global player_row, player_col, pos
-    key = key.decode("utf-8").lower()
-    if key == 's' and player_row < 14:
-        player_row += 1
-    elif key == 'w' and player_row > 0:
-        player_row -= 1
-    elif key == 'd' and player_col > 0:
-        player_col -= 1
-    elif key == 'a' and player_col < 14:
-        player_col += 1
-    pos = grid_to_world(player_row, player_col, 10)
-    glutPostRedisplay()
+            if (r + c) % 2 == 0:
+                glColor3f(0.2, 0.7, 0.8)
+            else:
+                glColor3f(1, 1, 1)
+
+            glBegin(GL_QUADS)
+            glVertex3f(x, y, 0)
+            glVertex3f(x + CELL, y, 0)
+            glVertex3f(x + CELL, y + CELL, 0)
+            glVertex3f(x, y + CELL, 0)
+            glEnd()
 
 
-shield_walls = []
-selected_shield = 0
+def draw_player():
+    x, y, z = grid_to_world(player_row, player_col, 20)
 
-def random_shield():
-    return {
-        'cx': random.randint(-5, 5) *(cell_size/2),
-        'cy': random.randint(-5, 5) * (cell_size/2),
-        'size': cell_size,
-        'height': 80,
-        'color': (random.random(), random.random(), random.random()),
-        'dx': random.choice([-1, 1]) * 2,
-        'dy': random.choice([-1, 1]) * 2
-    }
+    glPushMatrix()
+    glTranslatef(x, y, z)
 
-shield_walls = [random_shield() for _ in range(4)]
+    glColor3f(0, 0, 1)
+    glutSolidCube(40)
 
-def draw_cube(x, y, size, height, color):
-    r, g, b = color
-    glColor3f(r, g, b)
-    hs = size / 2.0
-    # bottom
-    glBegin(GL_QUADS)
-    glVertex3f(x-hs, y-hs, 0)
-    glVertex3f(x+hs, y-hs, 0)
-    glVertex3f(x+hs, y+hs, 0)
-    glVertex3f(x-hs, y+hs, 0)
-    glEnd()
-    # top
-    glBegin(GL_QUADS)
-    glVertex3f(x-hs, y-hs, height)
-    glVertex3f(x+hs, y-hs, height)
-    glVertex3f(x+hs, y+hs, height)
-    glVertex3f(x-hs, y+hs, height)
-    glEnd()
-    # front
-    glBegin(GL_QUADS)
-    glVertex3f(x-hs, y-hs, 0)
-    glVertex3f(x+hs, y-hs, 0)
-    glVertex3f(x+hs, y-hs, height)
-    glVertex3f(x-hs, y-hs, height)
-    glEnd()
-    # back
-    glBegin(GL_QUADS)
-    glVertex3f(x-hs, y+hs, 0)
-    glVertex3f(x+hs, y+hs, 0)
-    glVertex3f(x+hs, y+hs, height)
-    glVertex3f(x-hs, y+hs, height)
-    glEnd()
-    # left
-    glBegin(GL_QUADS)
-    glVertex3f(x-hs, y-hs, 0)
-    glVertex3f(x-hs, y+hs, 0)
-    glVertex3f(x-hs, y+hs, height)
-    glVertex3f(x-hs, y-hs, height)
-    glEnd()
-    # right
-    glBegin(GL_QUADS)
-    glVertex3f(x+hs, y-hs, 0)
-    glVertex3f(x+hs, y+hs, 0)
-    glVertex3f(x+hs, y+hs, height)
-    glVertex3f(x+hs, y-hs, height)
-    glEnd()
+    glTranslatef(0, 0, 35)
+    glColor3f(1, 0.8, 0.6)
+    glutSolidSphere(15, 20, 20)
+
+    glPopMatrix()
+
+
+def draw_thorns():
+    glColor3f(1, 0, 0)
+
+    for t in thorn_positions:
+        x, y = t["x"], t["y"]
+
+        glPushMatrix()
+        glTranslatef(x, y, 10)
+
+        glBegin(GL_TRIANGLES)
+        glVertex3f(0, 0, 50)
+        glVertex3f(-20, 0, 0)
+        glVertex3f(20, 0, 0)
+        glEnd()
+
+        glPopMatrix()
+
+
+def draw_gems():
+    glColor3f(1, 1, 0)
+    for g in collectibles:
+        x, y, z = grid_to_world(g[0], g[1], 20)
+
+        glPushMatrix()
+        glTranslatef(x, y, z)
+        glutSolidSphere(12, 20, 20)
+        glPopMatrix()
+
+
+# ---------------- SHIELDS ----------------
+shield_walls = [
+    {"r": 10, "c": 3},
+    {"r": 8, "c": 10},
+    {"r": 5, "c": 6},
+    {"r": 3, "c": 12},
+]
+
 
 def draw_shields():
-    for i, s in enumerate(shield_walls):
-        r,g,b = s['color']
-        if i == selected_shield:
-            r = min(1.0, r+0.3); g = min(1.0, g+0.3); b = min(1.0, b+0.3)
-        draw_cube(s['cx'], s['cy'], s['size'], s['height'], (r,g,b))
+    glColor3f(0.4, 0.4, 0.4)
 
-def move_shields(dt):
-    arena_limit = GRID_LENGTH - cell_size
     for s in shield_walls:
-        s['cx'] += s['dx'] * dt * 60
-        s['cy'] += s['dy'] * dt * 60
-        if s['cx'] > arena_limit or s['cx'] < -arena_limit:
-            s['dx'] *= -1
-        if s['cy'] > arena_limit or s['cy'] < -arena_limit:
-            s['dy'] *= -1
-hide_start_time = None
-HIDE_LIMIT = 10
-game_over = False
-game_over_reason = ""
-def point_in_square(px, py, cx, cy, size):
-    half = size/2.0
-    return (cx-half) <= px <= (cx+half) and (cy-half) <= py <= (cy+half)
+        x, y, z = grid_to_world(s["r"], s["c"], 0)
 
-def check_player_inside_any_shield():
-    px, py = pos
-    for s in shield_walls:
-        if point_in_square(px, py, s['cx'], s['cy'], s['size']):
-            return True
-    return False
-
-def check_collision_player_thorns():
-    global game_over, game_over_reason
-    px, py = pos
-    inside_shield = check_player_inside_any_shield()
-    for (x,y,z) in thorn_positions:
-        dist = math.hypot(x - px, y - py)
-        if dist < cell_size * 0.5:
-            if inside_shield:
-                if hide_start_time is None:
-                    return False
-                elif time.time() - hide_start_time < HIDE_LIMIT:
-                    return False
-                else:
-                    game_over = True
-                    game_over_reason = "Stayed inside shield too long"
-                    return True
-            else:
-                game_over = True
-                game_over_reason = "Hit by thorn"
-                return True
-    return False
-
-
-def up___date():
-    global prev_time, last_side_change, hide_start_time, game_over, game_over_reason, last_wave_time
-    if game_over:
-        glutPostRedisplay()
-        return
-
-    current_time = time.time()
-    dt = current_time - prev_time
-    prev_time = current_time
-
-    if current_time - last_side_change >= 5:
-        change_thorn_side()
-        last_side_change = current_time
-
-    if not thorn_positions and current_time - last_wave_time >= 1:
-        thorn_wave()
-
-    animate_thorns(dt)
-    move_shields(dt)
-
-    if check_player_inside_any_shield():
-        if hide_start_time is None:
-            hide_start_time = current_time
-        elif (current_time - hide_start_time) >= HIDE_LIMIT:
-            game_over = True
-            game_over_reason = f"Stayed behind shield > {int(HIDE_LIMIT)}s"
-    else:
-        hide_start_time = None
-
-    check_collision_player_thorns()
-    glutPostRedisplay()
-
-
-def specialKeyListener(key, x, y):
-
-    global camera_pos
-    x, y, z = camera_pos
-
-    if key == GLUT_KEY_LEFT:
-        x -= 2  
-
-    if key == GLUT_KEY_RIGHT:
-        x += 2 
-    if key == GLUT_KEY_UP:
-        y += 2
-    if key == GLUT_KEY_DOWN:
-        y -= 2
-
-
-    camera_pos = (x, y, z)
-
-win = False
-def check_player_inside_any_shield():
-    px, py, _ = pos
-    for s in shield_walls:
-        if point_in_square(px, py, s['cx'], s['cy'], s['size']):
-            return True
-    return False
-
-def check_collision_player_thorns():
-    global lives, game_over, game_over_reason
-    px, py, _ = pos
-    inside_shield = check_player_inside_any_shield()
-    for (col, row, dx, dy) in thorn_positions:
-        wx, wy, wz = grid_to_world(int(row), int(col), 10)
-        dist = math.hypot(wx - px, wy - py)
-        if dist < cell_size * 0.5:
-            if inside_shield:
-                return False
-            else:
-                lives -= 1
-                if lives <= 0:
-                    game_over = True
-                    game_over_reason = "No lives left"
-                return True
-    return False
-
-
-prev_time = time.time()
-
-def spawn_collectible():
-    global collectibles
-    row = random.randint(0, GRID_LENGTH-1)
-    col = random.randint(0, GRID_LENGTH-1)
-    collectibles.append((row, col))
-
-def draw_collectibles():
-    glColor3f(1, 1, 0) 
-    for (row, col) in collectibles:
-        x, y, z = grid_to_world(row, col, 15)
         glPushMatrix()
-        glTranslatef(x, y, z)
-        glutSolidSphere(10, 10, 10)
+        glTranslatef(x, y, 35)
+        glScalef(1.0, 1.0, 2.0)
+        glutSolidCube(50)
         glPopMatrix()
 
-def check_collectibles():
-    global collectibles, score
-    px, py, _ = pos
-    new_list = []
-    for (row, col) in collectibles:
-        wx, wy, wz = grid_to_world(row, col, 10)
-        dist = math.hypot(wx - px, wy - py)
-        if dist < cell_size*0.5:
-            score += 5
-        else:
-            new_list.append((row, col))
-    collectibles = new_list
 
-
-def point_in_square(px, py, cx, cy, size):
-    half = size/2.0
-    return (cx-half) <= px <= (cx+half) and (cy-half) <= py <= (cy+half)
-
-def check_player_inside_any_shield():
-    px, py, _ = pos
+def inside_shield():
     for s in shield_walls:
-        if point_in_square(px, py, s['cx'], s['cy'], s['size']):
+        if s["r"] == player_row and s["c"] == player_col:
             return True
     return False
 
-def check_collision_player_thorns():
-    global lives, game_over, game_over_reason
-    px, py, _ = pos
-    inside_shield = check_player_inside_any_shield()
-    for (col, row, dx, dy) in thorn_positions:
-        wx, wy, wz = grid_to_world(int(row), int(col), 10)
-        dist = math.hypot(wx - px, wy - py)
-        if dist < cell_size * 0.5:
-            if inside_shield:
-                return False
-            else:
+
+# ---------------- THORNS ----------------
+def spawn_wave():
+    global thorn_positions, last_wave
+
+    thorn_positions = []
+
+    direction = random.choice(["horizontal", "vertical"])
+
+    if direction == "horizontal":
+        for i in range(6):
+            row = random.randint(0, 14)
+            x, y, _ = grid_to_world(row, 0)
+            thorn_positions.append({"x": x, "y": y, "dx": thorn_speed, "dy": 0})
+
+    else:
+        for i in range(6):
+            col = random.randint(0, 14)
+            x, y, _ = grid_to_world(14, col)
+            thorn_positions.append({"x": x, "y": y, "dx": 0, "dy": -thorn_speed})
+
+    last_wave = time.time()
+
+
+# ---------------- GEMS ----------------
+def spawn_gem():
+    row = random.randint(1, 13)
+    col = random.randint(0, 14)
+    collectibles.append((row, col))
+
+
+# ---------------- COLLISION ----------------
+def check_collisions():
+    global lives, game_over, reason, score
+
+    px, py, _ = grid_to_world(player_row, player_col)
+
+    # thorn hit
+    for t in thorn_positions:
+        d = math.hypot(px - t["x"], py - t["y"])
+        if d < 35:
+            if not inside_shield():
                 lives -= 1
+                thorn_positions.clear()
                 if lives <= 0:
                     game_over = True
-                    game_over_reason = "No lives left"
-                return True
-    return False
+                    reason = "No lives left"
+
+    # gem collect
+    newlist = []
+    for g in collectibles:
+        gx, gy, _ = grid_to_world(g[0], g[1])
+        if math.hypot(px - gx, py - gy) < 35:
+            score += 5
+        else:
+            newlist.append(g)
+
+    collectibles[:] = newlist
 
 
-prev_time = time.time()
-last_collectible_time = 0
-collectibles = []
+# ---------------- UPDATE ----------------
+def update():
+    global prev_time, thorn_speed, win, score
+    global hide_start, game_over, reason, last_gem
 
-def up__date():
-    global prev_time, hide_start_time, game_over, game_over_reason, thorn_speed, win, score, last_collectible_time
     if game_over or win:
         glutPostRedisplay()
         return
 
-    current_time = time.time()
-    dt = current_time - prev_time
-    prev_time = current_time
-    
+    now = time.time()
+    dt = now - prev_time
+    prev_time = now
 
-    
-    thorn_speed = 6 + int(current_time // 20)
+    thorn_speed = 3 + int(now // 20)
 
-    if not thorn_positions and current_time - last_wave_time >= 1:
-        thorn_wave()
+    # thorn wave every second
+    if now - last_wave > 1 and len(thorn_positions) == 0:
+        spawn_wave()
 
-    animate_thorns(dt)
-    move_shields(dt)
-    
+    # move thorns
+    remove = []
+    for t in thorn_positions:
+        t["x"] += t["dx"]
+        t["y"] += t["dy"]
 
-    
-    if current_time - last_collectible_time > 5:
-        spawn_collectible()
-        last_collectible_time = current_time
+        if abs(t["x"]) > GRID_LENGTH + 100 or abs(t["y"]) > GRID_LENGTH + 100:
+            remove.append(t)
 
-    check_collectibles()
+    for r in remove:
+        thorn_positions.remove(r)
 
-    if check_player_inside_any_shield():
-        if hide_start_time is None:
-            hide_start_time = current_time
-        elif (current_time - hide_start_time) >= HIDE_LIMIT:
+    # gem spawn
+    if now - last_gem > 5:
+        spawn_gem()
+        last_gem = now
+
+    # shield timer
+    if inside_shield():
+        if hide_start is None:
+            hide_start = now
+        elif now - hide_start > HIDE_LIMIT:
             game_over = True
-            game_over_reason = f"Stayed behind shield > {int(HIDE_LIMIT)}s"
+            reason = "Stayed in shield too long"
     else:
-        hide_start_time = None
+        hide_start = None
 
-    check_collision_player_thorns()
+    check_collisions()
 
-    
-    if player_row == 0:
-        win = True
-        score += 10
-
-    glutPostRedisplay()
-def up_date():
-    global prev_time, hide_start_time, game_over, game_over_reason, thorn_speed, win, score, last_collectible_time
-    if game_over or win:
-        glutPostRedisplay()
-        return
-
-    current_time = time.time()
-    dt = current_time - prev_time
-    prev_time = current_time
-
-    
-    thorn_speed = 6 + int(current_time // 20)
-
-    if not thorn_positions and current_time - last_wave_time >= 1:
-        thorn_wave()
-
-    animate_thorns(dt)
-    move_shields(dt)
-
-    
-    if current_time - last_collectible_time > 5:
-        spawn_collectible()
-        last_collectible_time = current_time
-
-    check_collectibles()
-
-    if check_player_inside_any_shield():
-        if hide_start_time is None:
-            hide_start_time = current_time
-        elif (current_time - hide_start_time) >= HIDE_LIMIT:
-            game_over = True
-            game_over_reason = f"Stayed behind shield > {int(HIDE_LIMIT)}s"
-    else:
-        hide_start_time = None
-
-    check_collision_player_thorns()
-
+    # win
     if player_row == 0:
         win = True
         score += 10
 
     glutPostRedisplay()
 
-def mouseListener(button, state, x, y):
-    pass
-   
-        # # Left mouse button fires a bullet
-        # if button == GLUT_LEFT_BUTTON and state == GLUT_DOWN:
 
-        # # Right mouse button toggles camera tracking mode
-        # if button == GLUT_RIGHT_BUTTON and state == GLUT_DOWN:
+# ---------------- INPUT ----------------
+def keyboard(key, x, y):
+    global player_row, player_col, score
 
+    if game_over or win:
+        return
 
-def setupCamera():
-    """
-    Configures the camera's projection and view settings.
-    Uses a perspective projection and positions the camera to look at the target.
-    """
-    glMatrixMode(GL_PROJECTION)  # Switch to projection matrix mode
-    glLoadIdentity()  # Reset the projection matrix
-    # Set up a perspective projection (field of view, aspect ratio, near clip, far clip)
-    gluPerspective(fovY, 1.25, 0.1, 1500) # Think why aspect ration is 1.25?
-    glMatrixMode(GL_MODELVIEW)  # Switch to model-view matrix mode
-    glLoadIdentity()  # Reset the model-view matrix
+    key = key.decode().lower()
 
-    # Extract camera position and look-at target
-    x, y, z = camera_pos
-    # Position the camera and set its orientation
-    gluLookAt(x, y, z,  # Camera position
-              0, 0, 0,  # Look-at target
-              0, 0, 1)  # Up vector (z-axis)
+    moved = False
 
+    if key == 'w' and player_row > 0:
+        player_row -= 1
+        moved = True
 
-def idle():
-    """
-    Idle function that runs continuously:
-    - Triggers screen redraw for real-time updates.
-    """
-    update() 
-    up_date()
-    up__date()
-    up___date()
-    # update()
-     # Update game state
-    
-    # Ensure the screen updates with the latest changes
-    glutPostRedisplay()
+    elif key == 's' and player_row < 14:
+        player_row += 1
+        moved = True
+
+    elif key == 'a' and player_col > 0:
+        player_col -= 1
+        moved = True
+
+    elif key == 'd' and player_col < 14:
+        player_col += 1
+        moved = True
+
+    if moved:
+        score += 1
 
 
-def showScreen():
-   
-    # Clear color and depth buffers
+def special(key, x, y):
+    if key == GLUT_KEY_UP:
+        camera_pos[2] += 20
+    elif key == GLUT_KEY_DOWN:
+        camera_pos[2] -= 20
+
+
+# ---------------- DISPLAY ----------------
+def display():
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-    glLoadIdentity()  # Reset modelview matrix
-    glViewport(0, 0, 1000, 800)  # Set viewport size
+    glLoadIdentity()
 
-    setupCamera()  # Configure camera perspective
+    gluLookAt(
+        camera_pos[0], camera_pos[1], camera_pos[2],
+        0, 0, 0,
+        0, 0, 1
+    )
 
-    # Draw a random points
-    glPointSize(20)
-    glBegin(GL_POINTS)
-    glVertex3f(-GRID_LENGTH, GRID_LENGTH, 0)
-    glEnd()
-
-    # Draw the grid (game floor)
-    glBegin(GL_QUADS)
-    
-    glColor3f(1, 1, 1)
-    glVertex3f(-GRID_LENGTH, GRID_LENGTH, 0)
-    glVertex3f(0, GRID_LENGTH, 0)
-    glVertex3f(0, 0, 0)
-    glVertex3f(-GRID_LENGTH, 0, 0)
-
-    glVertex3f(GRID_LENGTH, -GRID_LENGTH, 0)
-    glVertex3f(0, -GRID_LENGTH, 0)
-    glVertex3f(0, 0, 0)
-    glVertex3f(GRID_LENGTH, 0, 0)
-
-
-    glColor3f(0.7, 0.5, 0.95)
-    glVertex3f(-GRID_LENGTH, -GRID_LENGTH, 0)
-    glVertex3f(-GRID_LENGTH, 0, 0)
-    glVertex3f(0, 0, 0)
-    glVertex3f(0, -GRID_LENGTH, 0)
-
-    glVertex3f(GRID_LENGTH, GRID_LENGTH, 0)
-    glVertex3f(GRID_LENGTH, 0, 0)
-    glVertex3f(0, 0, 0)
-    glVertex3f(0, GRID_LENGTH, 0)
-    glEnd()
-
-    # Display game info text at a fixed screen position
-   
-
-    arena()
-    wall()
-    player()
-    thorns()
+    draw_arena()
     draw_shields()
-    draw_collectibles()
+    draw_player()
+    draw_thorns()
+    draw_gems()
 
-    
+    draw_text(20, 760, f"Score: {score}")
+    draw_text(20, 730, f"Lives: {lives}")
+
+    if win:
+        draw_text(420, 760, "YOU WIN!")
+
+    if game_over:
+        draw_text(400, 760, "GAME OVER")
+        draw_text(360, 730, reason)
+
     glutSwapBuffers()
 
+
+# ---------------- MAIN ----------------
+def init():
+    glClearColor(0, 0, 0, 1)
+    glEnable(GL_DEPTH_TEST)
+    glMatrixMode(GL_PROJECTION)
+    gluPerspective(70, WINDOW_W / WINDOW_H, 1, 3000)
+    glMatrixMode(GL_MODELVIEW)
 
 
 def main():
     glutInit()
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH) 
-    glutInitWindowSize(1000, 800) 
-    glutInitWindowPosition(0, 0)  
-    wind = glutCreateWindow(b"3D OpenGL Intro")  
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH)
+    glutInitWindowSize(WINDOW_W, WINDOW_H)
+    glutCreateWindow(b"Thorn Escape")
 
-    glutDisplayFunc(showScreen)  
-    glutKeyboardFunc(keyboardListener)  
-    glutSpecialFunc(specialKeyListener)
-    glutMouseFunc(mouseListener)
-    glutIdleFunc(idle)  
-    glutMainLoop() 
-if __name__ == "__main__":
-    main()
+    init()
 
+    glutDisplayFunc(display)
+    glutIdleFunc(update)
+    glutKeyboardFunc(keyboard)
+    glutSpecialFunc(special)
+
+    glutMainLoop()
+
+
+main()
